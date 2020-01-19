@@ -29,6 +29,17 @@ static ipc_lock_t ipc_lock = {
 	.destroy = ipc_semsv_destroy,
 };
 
+#elif IPC_FLOCK
+
+#include "ipc_flock.h"
+
+static ipc_lock_t ipc_lock = {
+	.create = ipc_flock_create,
+	.lock = ipc_flock_lock,
+	.unlock = ipc_flock_unlock,
+	.destroy = ipc_flock_destroy,
+};
+
 #endif
 
 #endif

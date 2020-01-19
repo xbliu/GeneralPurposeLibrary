@@ -12,10 +12,7 @@
 #include <sys/stat.h>
 
 #include "ipc_semsv.h"
-
-
-static int fs_mkdirs(const char* path, mode_t mode);
-static int fs_create_file(char *name, mode_t mode);
+#include "file_mkdir.h"
 
 
 void *ipc_semsv_create(char *name)
@@ -32,8 +29,8 @@ void *ipc_semsv_create(char *name)
 	sprintf(sem_name,"/tmp/%s",name);
 	if (access(sem_name,F_OK)) {
 		fprintf(stderr,"create sem file!\n");
-		fs_mkdirs(sem_name,0666);
-		fs_create_file(sem_name,0666);
+		fs_mkdirs(sem_name,S_IRWXU | S_IRWXG);
+		fs_create_file(sem_name,S_IRWXU | S_IRWXG);
 	}
 	
 	ipc_semsv_t *semsv = calloc(sizeof(ipc_semsv_t),1);
@@ -86,6 +83,11 @@ int ipc_semsv_lock(void *handle)
 	int ret = 0;
 	ipc_semsv_t *semsv = (ipc_semsv_t *)handle;
 	
+	if (!semsv) {
+		fprintf(stderr,"null parameter!\n");
+		return -1;
+	}
+	
 	struct sembuf sem_buf;
 	sem_buf.sem_num = 0;
 	sem_buf.sem_op = -1;
@@ -102,6 +104,11 @@ int ipc_semsv_unlock(void *handle)
 {
 	int ret = 0;
 	ipc_semsv_t *semsv = (ipc_semsv_t *)handle;
+	
+	if (!semsv) {
+		fprintf(stderr,"null parameter!\n");
+		return -1;
+	}
 	
 	struct sembuf sem_buf;
 	sem_buf.sem_num = 0;
@@ -121,6 +128,11 @@ int ipc_semsv_destroy(void *handle)
 	ipc_semsv_t *semsv = (ipc_semsv_t *)handle;
 	union semun sem_union;
 	
+	if (!semsv) {
+		fprintf(stderr,"null parameter!\n");
+		return -1;
+	}
+	
 	/*only creator need do this*/
 	if (semsv->is_creator) {
 		ret = semctl(semsv->sem_id,0,IPC_RMID,sem_union);
@@ -133,104 +145,5 @@ int ipc_semsv_destroy(void *handle)
 	free(semsv);
 err_out:
 	return ret;
-}
-
-
-/**********************static******************************/
-
-static int fs_mkdirs(const char* path, mode_t mode)
-{
-    int res = 0;
-    int fd = 0;
-    struct stat sb;
-    char* buf = strdup(path);
-    char* segment = buf + 1;
-    char* p = segment;
-
-    if (*buf != '/') {
-        fprintf(stderr,"Relative paths are not allowed: %s", buf);
-        res = -EINVAL;
-        goto done;
-    }
-
-    if ((fd = open("/", 0)) == -1) {
-        fprintf(stderr,"Failed to open(/): %s", strerror(errno));
-        res = -errno;
-        goto done;
-    }
-    
-    while (*p != '\0') {
-        if (*p == '/') {
-            *p = '\0';
-
-            if (!strcmp(segment, "..") || !strcmp(segment, ".") || !strcmp(segment, "")) {
-                fprintf(stderr,"Invalid path: %s", buf);
-                res = -EINVAL;
-                goto done_close;
-            }
-
-            if (fstatat(fd, segment, &sb, AT_SYMLINK_NOFOLLOW) != 0) {
-                if (errno == ENOENT) {
-                    /* Nothing there yet; let's create it! */
-                    if (mkdirat(fd, segment, mode) != 0) {
-                        if (errno == EEXIST) {
-                            /* We raced with someone; ignore */
-                        } else {
-                            fprintf(stderr,"Failed to mkdirat(%s): %s", buf, strerror(errno));
-                            res = -errno;
-                            goto done_close;
-                        }
-                    }
-                } else {
-                    fprintf(stderr,"Failed to fstatat(%s): %s", buf, strerror(errno));
-                    res = -errno;
-                    goto done_close;
-                }
-            } else {
-                if (S_ISLNK(sb.st_mode)) {
-                    fprintf(stderr,"Symbolic links are not allowed: %s", buf);
-                    res = -ELOOP;
-                    goto done_close;
-                }
-                if (!S_ISDIR(sb.st_mode)) {
-                    fprintf(stderr,"Existing segment not a directory: %s", buf);
-                    res = -ENOTDIR;
-                    goto done_close;
-                }
-            }
-
-            /* Yay, segment is ready for us to step into */
-            int next_fd;
-            if ((next_fd = openat(fd, segment, O_NOFOLLOW | O_CLOEXEC)) == -1) {
-                fprintf(stderr,"Failed to openat(%s): %s", buf, strerror(errno));
-                res = -errno;
-                goto done_close;
-            }
-
-            close(fd);
-            fd = next_fd;
-
-            *p = '/';
-            segment = p + 1;
-        }
-        p++;
-    }
-
-done_close:
-    close(fd);
-done:
-    free(buf);
-    return res;
-}
-
-static int fs_create_file(char *name, mode_t mode)
-{
-	int fd = creat(name,mode);
-	if (fd < 0) {
-		fprintf(stderr,"create %s file failed : %s!\n",name,strerror(errno));
-		return -1;
-	}
-	
-	close(fd);
 }
 
