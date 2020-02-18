@@ -97,7 +97,7 @@ int ipc_semsv_lock(void *handle)
 		fprintf(stderr,"sem lock failed : %s!\n",strerror(errno));
 	}
 	
-	return 0;
+	return ret;
 }
 
 int ipc_semsv_unlock(void *handle)
