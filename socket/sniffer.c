@@ -176,7 +176,7 @@ void main(void *arg)
 	
     while(1) {
         saddr_size = sizeof(saddr);
-        data_size = recvfrom(raw_sock , buffer , sizeof(buffer) , 0 , &saddr , (socklen_t*)&saddr_size);
+        data_size = recvfrom(raw_sock , buffer , 1536 , 0 , &saddr , (socklen_t*)&saddr_size);
         if(data_size < 0 ) {
             printf("Recvfrom error , failed to get packets\n");
             continue;

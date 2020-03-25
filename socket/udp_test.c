@@ -51,7 +51,7 @@ typedef struct
 
 
 #define SERVER_MSG_HEAD_LEN  sizeof(YB_SERVER_MSG_HEAD_S)
-#define YB_PRIVA_CODE (0X66886688)
+#define YB_PRIVA_CODE (0x66886688)
 #define YB_MSG_VER (1)
 #define YB_MSG_TYPE_PING (1)
 
@@ -66,11 +66,13 @@ static socket_t socket_client = {
 
 int main(char *argc, char *argv[])
 {
+	int i = 0;
 	int send_times = 20;
 	socket_base_t *skt_base = NULL;
 	
 	int msg_no = 0;
-	char send_buf[1024] = {0};    
+	unsigned char send_buf[1024] = {0};
+    int send_len = 0;
     YB_SERVER_MSG_HEAD_S  ping_header  = {0};
     YB_SERVER_PING_S      ping_text = {0};
 	
@@ -85,7 +87,7 @@ int main(char *argc, char *argv[])
     ping_header.msg_attr.bit_val.ack_req   = 1;
     ping_header.msg_attr.bit_val.ack_flag  = 0;
     ping_header.msg_attr.bit_val.split_msg = 0;
-
+	
     ping_header.mask_code = 0;
     ping_header.text_len  = htons(sizeof(ping_text));
     ping_text.route_port  = htons(3355);
@@ -100,8 +102,16 @@ int main(char *argc, char *argv[])
 		return -1;
 	}
 	
+	fprintf(stderr,"magic: %x\n",ping_header.magic);
+	send_len = SERVER_MSG_HEAD_LEN + sizeof(ping_text);
 	do {
-		socket_client.socket_base_send(skt_base,send_buf,sizeof(send_buf));
+		fprintf(stderr,"send buf: ");
+		for (i=0; i<SERVER_MSG_HEAD_LEN+sizeof(ping_text); i++) {
+			fprintf(stderr," %x ",send_buf[i]);
+		}
+		fprintf(stderr,"\n");
+		
+		socket_client.socket_base_send(skt_base,send_buf,send_len);
 		usleep(2000000);
 	} while (--send_times);
 	
