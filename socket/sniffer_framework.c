@@ -28,7 +28,7 @@ int sniffer_init(sinffer_t *snf, int debug)
 		goto err_alloc;
 	}
 	
-	snf->sockfd = socket( AF_PACKET , SOCK_RAW , htons(ETH_P_ALL)) ;
+	snf->sockfd = socket(AF_PACKET,SOCK_RAW,htons(ETH_P_ALL)) ;
     if(snf->sockfd < 0) {
         //Print the error with proper message
         fprintf(stderr,"raw_sock Error");
@@ -98,7 +98,7 @@ static void *sniffer_model(void *arg)
 	sinffer_t *snf = (sinffer_t *)arg;
 	
 	saddr_size = sizeof(saddr);
-	data_size = recvfrom(snf->sockfd , snf->buffer , snf->buf_size , 0 , &saddr , (socklen_t*)&saddr_size);
+	data_size = recvfrom(snf->sockfd ,snf->buffer,snf->buf_size,0,&saddr,(socklen_t*)&saddr_size);
 	if(data_size < 0 ) {
 		printf("Recvfrom error , failed to get packets\n");
 		goto err_out;
@@ -109,7 +109,7 @@ static void *sniffer_model(void *arg)
 	}
 	
 	//Now process the packet
-	list_for_each_entry(filter, &snf->filter_head, entry) {
+	list_for_each_entry(filter,&snf->filter_head,entry) {
 		if (!filter->match(snf->buffer,data_size,filter->data)) {
 			continue;
 		}

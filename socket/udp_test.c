@@ -15,7 +15,7 @@ typedef struct
     unsigned int      route_ip;             
 } YB_SERVER_PING_S,*PYB_SERVER_PING_S;
 
-/*yb msg head define  */
+/*yb msg head define*/
 typedef struct  
 { 
     uint32_t  msg_type:8; 
@@ -64,18 +64,32 @@ static socket_t socket_client = {
 };
 
 
-int main(char *argc, char *argv[])
+int main(int argc, char *argv[])
 {
 	int i = 0;
 	int send_times = 20;
 	socket_base_t *skt_base = NULL;
 	
 	int msg_no = 0;
-	unsigned char send_buf[1024] = {0};
+	unsigned char send_buf[128] = {0};
     int send_len = 0;
     YB_SERVER_MSG_HEAD_S  ping_header  = {0};
     YB_SERVER_PING_S      ping_text = {0};
 	
+	int ip_port = 3355;
+	char ip_addr[16] = "127.0.0.1";
+	
+	fprintf(stderr,"usage udp_test ip_addr ip_port");
+	
+	if (argc > 1) {
+		strcpy(ip_addr,argv[1]);
+	}
+	
+	if (argc > 2) {
+		ip_port = atoi(argv[2]);
+	}
+	
+	fprintf(stderr,"ip addr:%s port:%d\n",ip_addr,ip_port);
 	
     ping_header.magic   = htonl(YB_PRIVA_CODE);
     ping_header.msg_ver = YB_MSG_VER;
@@ -90,13 +104,13 @@ int main(char *argc, char *argv[])
 	
     ping_header.mask_code = 0;
     ping_header.text_len  = htons(sizeof(ping_text));
-    ping_text.route_port  = htons(3355);
+    ping_text.route_port  = htons(ip_port);
     ping_text.route_ip    = htonl(0x20);
 	
     memcpy(send_buf, &ping_header, SERVER_MSG_HEAD_LEN);
     memcpy((send_buf + SERVER_MSG_HEAD_LEN), &ping_text, (sizeof(ping_text)));
 	
-	skt_base = socket_client.socket_base_init(SOCK_DGRAM,3355,"127.0.0.1");
+	skt_base = socket_client.socket_base_init(SOCK_DGRAM,ip_port,ip_addr);
 	if (!skt_base) {
 		fprintf(stderr,"open socket client error!\n");
 		return -1;

@@ -42,7 +42,7 @@ socket_base_t *udp_client_init(int type, int port, char *ip_addr)
 
 }
 
-int  udp_client_send(socket_base_t *skt_base, char *buf, int size)
+int  udp_client_send(socket_base_t *skt_base, unsigned char *buf, int size)
 {
 	int ret = 0;
 	int try_times = 3;
@@ -66,7 +66,7 @@ int  udp_client_send(socket_base_t *skt_base, char *buf, int size)
 	return ret;
 }
 
-int  udp_client_recv(socket_base_t *skt_base, char *buf, int size)
+int  udp_client_recv(socket_base_t *skt_base, unsigned char *buf, int size)
 {
 	int ret = 0;
 	int try_times = 3;
@@ -78,7 +78,7 @@ int  udp_client_recv(socket_base_t *skt_base, char *buf, int size)
 	}
 	
 	do {
-		ret = recvfrom(skt_base->fd,buf,size,0,(struct sockaddr*)&skt_base->sin,&addr_len);
+		ret = recvfrom(skt_base->fd,buf,size,0,(struct sockaddr*)&skt_base->sin,(socklen_t *)&addr_len);
 		if (EAGAIN != ret) {
 			break;
 		}
@@ -93,8 +93,6 @@ int  udp_client_recv(socket_base_t *skt_base, char *buf, int size)
 
 int  udp_client_destroy (socket_base_t *skt_base)
 {
-	int ret = 0;
-	
 	if (!skt_base) {
 		fprintf(stderr,"null parameter!\n");
 		return -1;

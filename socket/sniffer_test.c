@@ -31,7 +31,7 @@ int main(int argc, char *argv[])
 	sigint_handler.sa_handler = int_handler;
 	sigemptyset(&sigint_handler.sa_mask);
 	sigint_handler.sa_flags = 0;
-	sigaction(SIGINT, &sigint_handler, NULL);
+	sigaction(SIGINT,&sigint_handler,NULL);
 	
 	sniffer_init(&snf, 0);
 	register_sniffer(&snf,&m_filter);
@@ -72,33 +72,29 @@ static int alive_match(unsigned char *eth_data, int size, void *data)
 {
 	struct iphdr *iph = (struct iphdr*)(eth_data + sizeof(struct ethhdr));
 	
-	//fprintf(stderr,"<%s:%d> \n",__FUNCTION__,__LINE__);
 	if (iph->protocol != 17) { //check UDP Protocol
 		return 0;
 	}
 	
-	//fprintf(stderr,"<%s:%d> \n",__FUNCTION__,__LINE__);
 	if(!(eth_data[38]==0x00 && eth_data[39]==0x28)) { //check user data len
 		return 0;
 	}
 	
-	//fprintf(stderr,"<%s:%d> \n",__FUNCTION__,__LINE__);
 	if (!((0x66 == eth_data[42]) && (0x88 == eth_data[43]) && (0x66 == eth_data[44]) && (0x88 == eth_data[45]) && \
 			(0x18 == eth_data[47]) && (0x00 == eth_data[48]) && (0x08 == eth_data[49]) && (0x01 == eth_data[54]))
 	   ) { //check heartbeat msg
 		return 0;
 	}
 	
-	//fprintf(stderr,"<%s:%d> \n",__FUNCTION__,__LINE__);
 	return 1;
 }
 
 static int alive_action(unsigned char *eth_data, int size, void *data)
 {
 	int i = 0;
-	fprintf(stderr,"\n alive eth data: ");
+	fprintf(stderr,"\n alive eth data: \n");
 	for (i=0; i<size; i++) {
-		fprintf(stderr," %02x ",eth_data[i]);
+		fprintf(stderr,"%02x",eth_data[i]);
 	}
 	fprintf(stderr,"\n");
 	

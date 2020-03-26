@@ -9,8 +9,8 @@ typedef struct {
 typedef struct 
 {
 	socket_base_t *(*socket_base_init)(int type, int port, char *ip_addr);
-	int (*socket_base_send)(socket_base_t *handler, char *buf, int size);
-	int (*socket_base_recv)(socket_base_t *handler, char *buf, int size);
+	int (*socket_base_send)(socket_base_t *handler, unsigned char *buf, int size);
+	int (*socket_base_recv)(socket_base_t *handler, unsigned char *buf, int size);
 	int (*socket_base_destroy)(socket_base_t *handler);
 } socket_t;
 
