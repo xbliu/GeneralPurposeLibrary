@@ -49,6 +49,9 @@ int main(int argc, char *argv[])
 	fprintf(stderr,"lock!\n");
 	ipc_lock.lock(handle);
 	
+	fprintf(stderr,"lock!\n");
+	ipc_lock.lock(handle);
+	
 	fprintf(stderr,"destroy!\n");
 	ipc_lock.destroy(handle);
 	

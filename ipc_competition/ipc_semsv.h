@@ -11,6 +11,8 @@ typedef struct
 {
 	int sem_id;
 	int is_creator;
+	int lockref;
+	char *name;
 } ipc_semsv_t;
 
 #ifndef HAVE_SEMUN_UNION

@@ -20,7 +20,7 @@ void *ipc_semsv_create(char *name)
 	char sem_name[MAX_SEM_NAME_LEN] = {0};
 	int sem_id = 0;
 	key_t key_id = 0;
-	
+
 	if (!name) {
 		fprintf(stderr,"null parameter!\n");
 		return NULL;
@@ -33,7 +33,7 @@ void *ipc_semsv_create(char *name)
 		fs_create_file(sem_name,S_IRWXU | S_IRWXG);
 	}
 	
-	ipc_semsv_t *semsv = calloc(sizeof(ipc_semsv_t),1);
+	ipc_semsv_t *semsv = (ipc_semsv_t *)calloc(sizeof(ipc_semsv_t),1);
 	if (!semsv) {
 		fprintf(stderr,"no free mem!\n");
 		goto err_alloc;
@@ -66,9 +66,12 @@ void *ipc_semsv_create(char *name)
 		semsv->is_creator = 0;
 	}
 	
-	fprintf(stderr,"sem id:0x%x\n",sem_id);
+	fprintf(stderr,"sem id:0x%x is_creator:%d\n",sem_id,semsv->is_creator);
+
 	//semsv->key_id = key_id;
 	semsv->sem_id = sem_id;
+	semsv->lockref = 0;
+	semsv->name = strdup(name);
 	
 	return (void *)semsv;
 	
@@ -82,6 +85,7 @@ int ipc_semsv_lock(void *handle)
 {
 	int ret = 0;
 	ipc_semsv_t *semsv = (ipc_semsv_t *)handle;
+	ipc_semsv_t *ptr = NULL;
 	
 	if (!semsv) {
 		fprintf(stderr,"null parameter!\n");
@@ -92,9 +96,18 @@ int ipc_semsv_lock(void *handle)
 	sem_buf.sem_num = 0;
 	sem_buf.sem_op = -1;
 	sem_buf.sem_flg = SEM_UNDO;
+
 	ret = semop(semsv->sem_id,&sem_buf,1);
-	if (-1 == ret) {
-		fprintf(stderr,"sem lock failed : %s!\n",strerror(errno));
+	if (0 == ret) {
+		semsv->lockref++;
+	} else {
+		fprintf(stderr,"sem lock failed : %s! name:%s\n",strerror(errno),semsv->name);
+		//it was destroyed by the creator,recreate it.
+		if ((EINVAL == errno) && semsv->name) {
+			ptr = (ipc_semsv_t *)ipc_semsv_create(semsv->name);
+			free(semsv->name);
+			memcpy(semsv,ptr,sizeof(ipc_semsv_t));
+		}
 	}
 	
 	return ret;
@@ -114,9 +127,13 @@ int ipc_semsv_unlock(void *handle)
 	sem_buf.sem_num = 0;
 	sem_buf.sem_op = 1;
 	sem_buf.sem_flg = SEM_UNDO;
+
 	ret = semop(semsv->sem_id,&sem_buf,1);
+
 	if (-1 == ret) {
 		fprintf(stderr,"sem unlock failed!\n");
+	} else {
+		semsv->lockref--;
 	}
 	
 	return ret;
@@ -142,6 +159,9 @@ int ipc_semsv_destroy(void *handle)
 		}
 	}
 	
+	if (semsv->name) {
+		free(semsv->name);
+	}
 	free(semsv);
 err_out:
 	return ret;

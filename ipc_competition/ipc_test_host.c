@@ -49,12 +49,21 @@ int main(int argc, char *argv[])
 	sleep(10);	
 	
 	
-	fprintf(stderr,"#######################################\n");
-	fprintf(stderr,"Host side: process abnormal exit!\n");
-	fprintf(stderr,"#######################################\n");
-	
-	fprintf(stderr,"lock!\n");
-	ipc_lock.lock(handle);
+	if (argv[2] == NULL) {
+		fprintf(stderr,"#######################################\n");
+		fprintf(stderr,"Host side: process abnormal exit!\n");
+		fprintf(stderr,"#######################################\n");
+		
+		fprintf(stderr,"lock!\n");
+		ipc_lock.lock(handle);
+	} else {
+		fprintf(stderr,"#######################################\n");
+		fprintf(stderr,"Host side: process normal destroy!\n");
+		fprintf(stderr,"#######################################\n");
+		
+		ipc_lock.destroy(handle);
+		sleep(30);
+	}
 	
 	return 0;
 }
