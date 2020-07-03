@@ -39,13 +39,13 @@ int Sunday(const string& T, const string& P) {
 
 int sunday_match(const char *src, const int src_len, const char *pattern, int pattern_len)
 {
-	char a = 0;
+	int a = 0;
     int i = 0;
     int j = 0;
-	int shift[128] = {0};
+	int shift[256] = {0};
 	
 	//默认值，移动pattern_len+1位
-	for (a=0; a<128; a++) {
+	for (a=0; a<256; a++) {
 		shift[a] = pattern_len + 1;
 	}
 	
@@ -55,6 +55,7 @@ int sunday_match(const char *src, const int src_len, const char *pattern, int pa
         shift[pattern[i]] = pattern_len - i;
     }
 	
+	i=0;
     while(i <= src_len - pattern_len) {
         j = 0;
         while(src[i + j] == pattern[j]) {
