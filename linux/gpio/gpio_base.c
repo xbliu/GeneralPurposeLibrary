@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <errno.h>
 
 #define GPIO_BASE_DIR "/sys/class/gpio"
 
@@ -58,6 +59,18 @@ err_out:
 	return GPIO_BASE_RET_FAIL;
 }
 
+int gpio_base_is_exist(int ngpio)
+{
+	char str[64] = {0};
+	
+	snprintf(str,sizeof(str),"%s/%s",GPIO_BASE_DIR,"unexport");
+	if (0 == access(str,0666)) {
+		return 1;
+	}
+	
+	return 0;
+}
+
 int gpio_base_set_direction(int ngpio, gpio_direction_e dir)
 {
 	int fd = 0;
@@ -104,7 +117,7 @@ gpio_direction_e gpio_base_get_direction(int ngpio)
 	gpio_direction_e dir = GPIO_DIR_BUTT;
 	
 	snprintf(str,sizeof(str),"%s/gpio%d/%s",GPIO_BASE_DIR,ngpio,"direction");
-	fd = open(str,O_WRONLY);
+	fd = open(str,O_RDONLY);
     if(fd < 0) {
 		printf("path %s  set gpio %d failed\n", str,ngpio);
         goto err_out;
@@ -247,5 +260,30 @@ int gpio_base_get_value(int ngpio)
 	return value;
 err_out:	
 	return GPIO_BASE_RET_FAIL;
+}
+
+int gpio_base_open(int ngpio)
+{
+	int fd = 0;
+	char str[64] = {0};
+	
+	snprintf(str,sizeof(str),"%s/gpio%d/%s",GPIO_BASE_DIR,ngpio,"value");
+	fd = open(str,O_WRONLY);
+    if(fd < 0) {
+		printf("path %s  open gpio %d failed\n", str,ngpio);
+    }
+	
+	return fd;
+}
+
+int gpio_base_close(int fd)
+{
+	if (fd < 0) {
+		printf("illegal parameter fd[%d] \n",fd);
+		return GPIO_BASE_RET_FAIL;
+	}
+	
+	close(fd);
+	return GPIO_BASE_RET_OK;
 }
 

@@ -24,6 +24,11 @@ typedef enum {
 */
 int gpio_base_export(int ngpio);
 int gpio_base_unexport(int ngpio);
+/*
+*** return:
+*** 0: not exist 1:exist
+*/
+int gpio_base_is_exist(int ngpio);
 
 int gpio_base_set_direction(int ngpio, gpio_direction_e dir);
 gpio_direction_e gpio_base_get_direction(int ngpio);
@@ -33,5 +38,8 @@ gpio_edge_e gpio_base_get_edge(int ngpio);
 
 int gpio_base_set_value(int ngpio, int value);
 int gpio_base_get_value(int ngpio);
+
+int gpio_base_open(int ngpio);
+int gpio_base_close(int fd);
 
 #endif
