@@ -100,7 +100,7 @@ int gpio_base_set_direction(int ngpio, gpio_direction_e dir)
 		default:
 			break;
 	}
-      
+	
     write(fd,str,len);
 	close(fd);
 	
@@ -124,10 +124,10 @@ gpio_direction_e gpio_base_get_direction(int ngpio)
     }
 	
 	memset(str,0,sizeof(str));
-	read(fd,str,sizeof(str));
-	if (0 == strcmp(str,"in")) {
+	len = read(fd,str,sizeof(str)); //read is "in\n" or "out\n"
+	if (0 == strncmp(str,"in",len-1)) {
 		dir = GPIO_DIR_INPUT;
-	} else if (0 == strcmp(str,"out")) {
+	} else if (0 == strncmp(str,"out",len-1)) {
 		dir = GPIO_DIR_OUTPUT;
 	}
 	
@@ -147,6 +147,8 @@ int gpio_base_set_edge(int ngpio, gpio_edge_e edge)
 		printf("illegal parameter!\n");
 		goto err_out;
 	}
+	
+	//gpio_base_set_direction(ngpio,GPIO_DIR_INPUT); //set gpio as input
 	
 	snprintf(str,sizeof(str),"%s/gpio%d/%s",GPIO_BASE_DIR,ngpio,"edge");
 	fd = open(str,O_WRONLY);
@@ -172,8 +174,9 @@ int gpio_base_set_edge(int ngpio, gpio_edge_e edge)
 		default:
 			break;
 	}
-    
+	
     write(fd,str,len);
+	
 	close(fd);
 	
 	return GPIO_BASE_RET_OK;
@@ -184,26 +187,26 @@ err_out:
 gpio_edge_e gpio_base_get_edge(int ngpio)
 {
 	int fd = 0;
+	int len = 0;
 	gpio_edge_e edge = GPIO_EDGE_BUTT;
 	char str[64] = {0};
 	
 	snprintf(str,sizeof(str),"%s/gpio%d/%s",GPIO_BASE_DIR,ngpio,"edge");
-	fd = open(str, O_WRONLY);
+	fd = open(str, O_RDONLY);
     if(fd < 0) {
 		printf("path %s  set gpio %d failed\n", str,ngpio);
         goto err_out;
     }
 	
 	memset(str,0,sizeof(str));
-	read(fd,str,sizeof(str));
-	
-	if (0 == strcmp(str,"none")) {
+	len = read(fd,str,sizeof(str));
+	if (0 == strncmp(str,"none",len-1)) {
 		edge = GPIO_EDGE_NONE;
-	} else if (0 == strcmp(str,"rising")) {
+	} else if (0 == strncmp(str,"rising",len-1)) {
 		edge = GPIO_EDGE_RISING;
-	} else if (0 == strcmp(str,"falling")) {
+	} else if (0 == strncmp(str,"falling",len-1)) {
 		edge = GPIO_EDGE_FALLING;
-	} else if (0 == strcmp(str,"both")) {
+	} else if (0 == strncmp(str,"both",len-1)) {
 		edge = GPIO_EDGE_BOTH;
 	}
 
@@ -219,6 +222,8 @@ int gpio_base_set_value(int ngpio, int value)
 	int fd = 0;
 	int len = 0;
 	char str[64] = {0};
+	
+	//gpio_base_set_direction(ngpio, GPIO_DIR_OUTPUT); //set gpio as output
 	
 	snprintf(str,sizeof(str),"%s/gpio%d/%s",GPIO_BASE_DIR,ngpio,"value");
 	fd = open(str,O_WRONLY);
@@ -245,7 +250,7 @@ int gpio_base_get_value(int ngpio)
 	char str[64] = {0};
 	
 	snprintf(str,sizeof(str),"%s/gpio%d/%s",GPIO_BASE_DIR,ngpio,"value");
-	fd = open(str,O_WRONLY);
+	fd = open(str,O_RDONLY);
     if(fd < 0) {
 		printf("path %s  set gpio %d failed\n", str,ngpio);
         goto err_out;
