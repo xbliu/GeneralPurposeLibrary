@@ -63,7 +63,7 @@ int gpio_base_is_exist(int ngpio)
 {
 	char str[64] = {0};
 	
-	snprintf(str,sizeof(str),"%s/%s",GPIO_BASE_DIR,"unexport");
+	snprintf(str,sizeof(str),"%s/gpio%d",GPIO_BASE_DIR,ngpio);
 	if (0 == access(str,0666)) {
 		return 1;
 	}

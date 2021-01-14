@@ -19,6 +19,15 @@ int gpio_ctrl_set_value(int ngpio, int value)
 	return 0;
 }
 
+int gpio_ctrl_get_value(int ngpio)
+{
+	if (!gpio_base_is_exist(ngpio)) {
+		gpio_base_export(ngpio);
+	}
+	
+	return gpio_base_get_value(ngpio); // in or out's value
+}
+
 int gpio_ctrl_set_edge(int ngpio, gpio_edge_e edge)
 {
 	if (!gpio_base_is_exist(ngpio)) {
