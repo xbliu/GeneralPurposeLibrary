@@ -1,4 +1,11 @@
 #include <termios.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+#include <stdio.h>
+
 
 #define NELEMS(x)       (sizeof(x) / sizeof((x)[0]))
 
@@ -108,8 +115,8 @@ static int set_parity(struct termios *options, char parity)
 
 static int set_stop_bits(struct termios *options, int stop_bits)
 {
-	/* stopbit */
-    switch (stopbits) {
+	/* stop_bits */
+    switch (stop_bits) {
 		default:
             fprintf(stderr, "unsupported stop bits:%d,usb 1 stop bits\n",stop_bits);
         case 1:
@@ -168,6 +175,45 @@ int serial_set_databits(int fd, int data_bits)
 	return 0;
 }
 
+int serial_set_conf(int fd, int speed, int data_bits, int stop_bits, char parity)
+{
+	int ret = 0;
+	struct termios options;
+	int baudrate = get_baudrate(speed);
+	
+    if (baudrate < 0) {
+		printf("not found baudrate %d\n",speed);
+		return -1;
+	}
+
+	ret = tcgetattr(fd, &options);
+	if (0 != ret) {
+		return -1;
+	}
+
+	cfmakeraw(&options); /* raw mode */
+
+	/*set baudrate*/
+	cfsetispeed(&options, baudrate);
+    cfsetospeed(&options, baudrate);
+
+	set_data_bits(&options, data_bits);
+	set_stop_bits(&options, stop_bits);
+	set_parity(&options, parity);
+
+	options.c_cc[VTIME] = 150;      /* 15 seconds */
+    options.c_cc[VMIN]  = 0;
+
+	tcflush(fd, TCIFLUSH);  /* update the options and do it NOW */
+	ret = tcsetattr(fd, TCSANOW, &options);
+    if (0 != ret) {
+        perror("set data bits");
+        return -1;
+    }
+
+	return 0;
+}
+
 int serial_open(char *dev_name)
 {
 	int fd = 0;
@@ -190,7 +236,13 @@ int serial_close(int fd)
 	return close(fd);
 }
 
+size_t serial_read(int fd, void *buf, size_t size)
+{
+    return read(fd, buf, size);
+}
 
-
-
+size_t serial_write(int fd, void *buf, size_t size)
+{
+    return write(fd, buf, size);
+}
 
