@@ -14,36 +14,71 @@
 #define MAX_THREAD_NAME_LEN (32)
 
 
-static int set_pthread_attr(pthread_attr_t *attr, int piority, int  cpuid)
+static int is_valid_priority(int piority, int policy)
 {
+	int ret = 0;
+
+	ret = sched_get_priority_min(policy);
+	if (piority < ret) {
+		LOG_ERROR(LOG_MOD_UTILS, "error min priority[%d %d]\n", ret, piority);
+		return 0;
+	}
+	printf("<%s:%d> min priority[%d] \n", __FUNCTION__, __LINE__, ret);
+
+	ret = sched_get_priority_max(policy);
+	if ((-1 != ret) && (piority > ret)) {
+		LOG_ERROR(LOG_MOD_UTILS, "error max priority[%d %d]\n", ret, piority);
+		return 0;
+	}
+
+	return 1;
+}
+
+static int set_common_pthread_attr(pthread_attr_t *attr, int piority, int  cpuid, int is_real_time)
+{
+	int ret = 0;
 	struct sched_param param;
 	cpu_set_t cpu_mask;
-	
+	int is_explicit_sched = 0;
+
 	if (pthread_attr_init(attr)) {
 		LOG_ERROR(LOG_MOD_UTILS, "pthread attr init err %d: %s \n", errno, strerror(errno));
 		return -1;
 	}
 
-#if 0
-	if (pthread_attr_setinheritsched(attr, PTHREAD_EXPLICIT_SCHED)) {
-		printf("pthread attr setinheritsched err %d: %s \n", errno, strerror(errno));
-		goto err_destroy;
-	}
-#endif
-
-	if (pthread_attr_setschedpolicy(attr, SCHED_RR)) {
-		goto err_destroy;
-	}
-
-	if (0 != piority) {
-		param.sched_priority = piority;
-		if (pthread_attr_setschedparam(attr, &param)) {
-			LOG_ERROR(LOG_MOD_UTILS, "pthread attr setschedparam err %d: %s \n", errno, strerror(errno));
+	if (is_real_time) {
+		if (pthread_attr_setschedpolicy(attr, SCHED_RR)) {
+			LOG_ERROR(LOG_MOD_UTILS, "pthread attr setschedpolicy err %d: %s \n", errno, strerror(errno));
 			goto err_destroy;
+		}
+		is_explicit_sched = 1;
+
+		ret = is_valid_priority(piority, SCHED_RR);
+		if (!ret) {
+			LOG_ERROR(LOG_MOD_UTILS, "SCHED_RR not support piority[%d]\n", piority);
+			goto err_destroy;
+		}
+
+		pthread_attr_getschedparam(attr, &param);
+		if (piority != param.sched_priority) {
+			param.sched_priority = piority;
+			ret = pthread_attr_setschedparam(attr, &param);
+			if (0 != ret) {
+				LOG_ERROR(LOG_MOD_UTILS, "pthread attr setschedparam err %d: %s \n", ret, strerror(errno));
+				goto err_destroy;
+			}
+			is_explicit_sched = 1;
 		}
 	}
 
 #ifndef _ANDROID_
+	if (is_explicit_sched) {
+		if (pthread_attr_setinheritsched(attr, PTHREAD_EXPLICIT_SCHED)) {
+			printf("pthread attr setinheritsched err %d: %s \n", errno, strerror(errno));
+			goto err_destroy;
+		}
+	}
+
 	if (-1 != cpuid) {
 		CPU_ZERO(&cpu_mask);
 		CPU_SET(cpuid, &cpu_mask);
@@ -87,6 +122,47 @@ static void *signal_task(void *arg)
 	signal(SIGSYS, signal_handler);
 
 	return task->entry(task->arg);
+}
+
+static int create_common_task(task_t *task, pthread_t *tid, int is_real_time)
+{
+	int ret = 0;
+	pthread_attr_t attr;
+
+	ret = set_common_pthread_attr(&attr,task->piority,task->cpuid, is_real_time);
+	if (ret < 0) {
+		LOG_ERROR(LOG_MOD_UTILS, "task set common attr failed!\n");
+		goto err_set;
+	}
+
+	if (task->debug_on) {
+		ret = pthread_create(tid,&attr,signal_task,task);
+	} else {
+		ret = pthread_create(tid,&attr,task->entry,task->arg);
+	}
+
+	if (ret < 0) {
+		ret = -1;
+		LOG_ERROR(LOG_MOD_UTILS, "failed to create thread:%s!\n", strerror(errno));
+		goto err_create;
+	}
+
+#ifndef _ANDROID_
+	if(task->name) {
+		pthread_setname_np(*tid, task->name);
+	}
+#endif
+
+	if (task->is_detach) {
+		pthread_detach(*tid);
+	}
+
+	return 0;
+
+err_create:
+	pthread_attr_destroy(&attr);
+err_set:
+	return ret;
 }
 
 
@@ -152,43 +228,12 @@ int task_set_param(task_t *task, char *name, task_func entry, void *arg)
 
 int task_create(task_t *task, pthread_t *tid)
 {
-	int ret = 0;
-	pthread_attr_t attr;
+	return create_common_task(task, tid, 0);
+}
 
-	ret = set_pthread_attr(&attr,task->piority,task->cpuid);
-	if (ret < 0) {
-		LOG_ERROR(LOG_MOD_UTILS, "task set piority cpuid failed!\n");
-		goto err_set;
-	}
-
-	if (task->debug_on) {
-		ret = pthread_create(tid,&attr,signal_task,task);
-	} else {
-		ret = pthread_create(tid,&attr,task->entry,task->arg);
-	}
-
-	if (ret < 0) {
-		ret = -1;
-		LOG_ERROR(LOG_MOD_UTILS, "failed to create thread:%s!\n", strerror(errno));
-		goto err_create;
-	}
-
-#ifndef _ANDROID_
-	if(task->name) {
-		pthread_setname_np(*tid, task->name);
-	}
-#endif
-
-	if (task->is_detach) {
-		pthread_detach(*tid);
-	}
-
-	return 0;
-
-err_create:
-	pthread_attr_destroy(&attr);
-err_set:
-	return ret;
+int task_create_real_time(task_t *task, pthread_t *tid)
+{
+	return create_common_task(task, tid, 1);
 }
 
 int task_register_signal(void)
@@ -202,4 +247,5 @@ int task_register_signal(void)
 
 	return 0;
 }
+
 

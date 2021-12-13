@@ -40,6 +40,7 @@ task_t *task_alloc_init();
 int task_free(task_t *task);
 int task_set_param(task_t *task, char *name, task_func entry, void *arg);
 int task_create(task_t *task, pthread_t *tid);
+int task_create_real_time(task_t *task, pthread_t *tid);
 int task_register_signal(void);
 
 
