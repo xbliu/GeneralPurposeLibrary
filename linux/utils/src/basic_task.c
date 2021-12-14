@@ -14,7 +14,7 @@
 #define MAX_THREAD_NAME_LEN (32)
 
 
-static int is_valid_priority(int piority, int policy)
+static int check_priority(int piority, int policy)
 {
 	int ret = 0;
 
@@ -23,7 +23,6 @@ static int is_valid_priority(int piority, int policy)
 		LOG_ERROR(LOG_MOD_UTILS, "error min priority[%d %d]\n", ret, piority);
 		return 0;
 	}
-	printf("<%s:%d> min priority[%d] \n", __FUNCTION__, __LINE__, ret);
 
 	ret = sched_get_priority_max(policy);
 	if ((-1 != ret) && (piority > ret)) {
@@ -51,24 +50,14 @@ static int set_common_pthread_attr(pthread_attr_t *attr, int piority, int  cpuid
 			LOG_ERROR(LOG_MOD_UTILS, "pthread attr setschedpolicy err %d: %s \n", errno, strerror(errno));
 			goto err_destroy;
 		}
-		is_explicit_sched = 1;
 
-		ret = is_valid_priority(piority, SCHED_RR);
-		if (!ret) {
-			LOG_ERROR(LOG_MOD_UTILS, "SCHED_RR not support piority[%d]\n", piority);
+		param.sched_priority = piority;
+		ret = pthread_attr_setschedparam(attr, &param);
+		if (0 != ret) {
+			LOG_ERROR(LOG_MOD_UTILS, "pthread attr setschedparam err %d: %s \n", ret, strerror(errno));
 			goto err_destroy;
 		}
-
-		pthread_attr_getschedparam(attr, &param);
-		if (piority != param.sched_priority) {
-			param.sched_priority = piority;
-			ret = pthread_attr_setschedparam(attr, &param);
-			if (0 != ret) {
-				LOG_ERROR(LOG_MOD_UTILS, "pthread attr setschedparam err %d: %s \n", ret, strerror(errno));
-				goto err_destroy;
-			}
-			is_explicit_sched = 1;
-		}
+		is_explicit_sched = 1;
 	}
 
 #ifndef _ANDROID_
@@ -141,9 +130,9 @@ static int create_common_task(task_t *task, pthread_t *tid, int is_real_time)
 		ret = pthread_create(tid,&attr,task->entry,task->arg);
 	}
 
-	if (ret < 0) {
+	if (0 != ret) {
+		LOG_ERROR(LOG_MOD_UTILS, "failed to create thread retval[%d] %s!\n", ret, strerror(errno));
 		ret = -1;
-		LOG_ERROR(LOG_MOD_UTILS, "failed to create thread:%s!\n", strerror(errno));
 		goto err_create;
 	}
 
@@ -157,6 +146,7 @@ static int create_common_task(task_t *task, pthread_t *tid, int is_real_time)
 		pthread_detach(*tid);
 	}
 
+	pthread_attr_destroy(&attr);
 	return 0;
 
 err_create:
