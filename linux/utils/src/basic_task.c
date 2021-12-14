@@ -1,38 +1,119 @@
+/*
+* basic_task.c
+* Base thread creation interface
+*/
 #include "basic_task.h"
 #include "log_adapter.h"
 
+#include <stdio.h>
+#include <stdlib.h>
 #include <errno.h>
 #include <signal.h>
 #include <string.h>
-
-#ifndef _ANDROID_
 #include <execinfo.h>
-#endif
 
 
+/*
+******************************************************Macro Definitions******************************************************
+*/
 #define MAX_BACKTRACE_NUM (32)
 #define MAX_THREAD_NAME_LEN (32)
 
 
-static int check_priority(int piority, int policy)
+/*
+******************************************************Function Declaration******************************************************
+*/
+static int set_common_pthread_attr(pthread_attr_t *attr, int piority, int  cpuid, int is_real_time);
+static void signal_handler(int signum);
+static void *signal_task(void *arg);
+static int create_common_task(gnpl_task_t *task, pthread_t *tid, int is_real_time);
+
+
+/*
+******************************************************Function Interface******************************************************
+*/
+void gnpl_task_dump_stack()
 {
-	int ret = 0;
+	int i = 0;
+	int size = 0;
+    void *buffer[MAX_BACKTRACE_NUM] = {0};
+	char **symbol = NULL;
+	char thread_name[MAX_THREAD_NAME_LEN] = {0};
 
-	ret = sched_get_priority_min(policy);
-	if (piority < ret) {
-		LOG_ERROR(LOG_MOD_UTILS, "error min priority[%d %d]\n", ret, piority);
-		return 0;
-	}
-
-	ret = sched_get_priority_max(policy);
-	if ((-1 != ret) && (piority > ret)) {
-		LOG_ERROR(LOG_MOD_UTILS, "error max priority[%d %d]\n", ret, piority);
-		return 0;
-	}
-
-	return 1;
+	pthread_getname_np(pthread_self(), thread_name, MAX_THREAD_NAME_LEN);
+    size = backtrace(buffer, MAX_BACKTRACE_NUM);
+    symbol = backtrace_symbols(buffer, size);
+	
+    LOG_INFO(LOG_MOD_UTILS, "[%15s]Seg-fault backtrack:\n",thread_name);
+    for (i = 0; i < size; ++i) {
+      LOG_INFO(LOG_MOD_UTILS, "[%15s][%3d/%3d]: %s\n", thread_name, i, size, symbol[i]);
+    }
+    free(symbol);
 }
 
+int gnpl_task_init(gnpl_task_t *task)
+{
+	memset(task,0,sizeof(gnpl_task_t));
+	task->cpuid = -1;
+
+	return 0;
+}
+
+gnpl_task_t *gnpl_task_alloc_init()
+{
+	gnpl_task_t *task = (gnpl_task_t *)malloc(sizeof(gnpl_task_t));
+	if (!task) {
+		LOG_ERROR(LOG_MOD_UTILS, "no mem for task!\n");
+		return NULL;
+	}
+
+	gnpl_task_init(task);
+	return task;
+}
+
+int gnpl_task_free(gnpl_task_t *task)
+{
+	if (task) {
+		free(task);
+	}
+
+	return 0;
+}
+
+int gnpl_task_set_param(gnpl_task_t *task, char *name, task_func entry, void *arg)
+{
+	task->name = name;
+	task->arg = arg;
+	task->entry = entry;
+	return 0;
+}
+
+int gnpl_task_create(gnpl_task_t *task, pthread_t *tid)
+{
+	return create_common_task(task, tid, 0);
+}
+
+int gnpl_task_create_real_time(gnpl_task_t *task, pthread_t *tid)
+{
+	return create_common_task(task, tid, 1);
+}
+
+int gnpl_task_register_signal(void)
+{
+	signal(SIGSEGV, signal_handler);
+	signal(SIGILL, signal_handler);
+	signal(SIGABRT, signal_handler);
+	signal(SIGBUS, signal_handler);
+	signal(SIGFPE, signal_handler);
+	signal(SIGSYS, signal_handler);
+
+	return 0;
+}
+
+
+/*
+******************************************************Static Function****************************************************** 
+*/
 static int set_common_pthread_attr(pthread_attr_t *attr, int piority, int  cpuid, int is_real_time)
 {
 	int ret = 0;
@@ -60,7 +141,6 @@ static int set_common_pthread_attr(pthread_attr_t *attr, int piority, int  cpuid
 		is_explicit_sched = 1;
 	}
 
-#ifndef _ANDROID_
 	if (is_explicit_sched) {
 		if (pthread_attr_setinheritsched(attr, PTHREAD_EXPLICIT_SCHED)) {
 			printf("pthread attr setinheritsched err %d: %s \n", errno, strerror(errno));
@@ -76,7 +156,6 @@ static int set_common_pthread_attr(pthread_attr_t *attr, int piority, int  cpuid
 			goto err_destroy;
 		}
 	}
-#endif
 
 	return 0;
 
@@ -87,33 +166,25 @@ err_destroy:
 
 static void signal_handler(int signum)
 {
-#ifndef _ANDROID_
 	char thread_name[MAX_THREAD_NAME_LEN] = {0};
 	pthread_getname_np(pthread_self(), thread_name, MAX_THREAD_NAME_LEN);
 
 	LOG_INFO(LOG_MOD_UTILS, "thread %s catch a signal %d and may be crashed!\n", thread_name, signum);
 
 	if ((SIGSEGV == signum) || (SIGABRT == signum)) {
-		dump_thread_stack();
+		gnpl_task_dump_stack();
 	}
-#endif
 }
 
 static void *signal_task(void *arg)
 {
-	task_t *task = (task_t *)arg;
+	gnpl_task_t *task = (gnpl_task_t *)arg;
 
-	signal(SIGSEGV, signal_handler);
-	signal(SIGILL, signal_handler);
-	signal(SIGABRT, signal_handler);
-	signal(SIGBUS, signal_handler);
-	signal(SIGFPE, signal_handler);
-	signal(SIGSYS, signal_handler);
-
+	gnpl_task_register_signal();
 	return task->entry(task->arg);
 }
 
-static int create_common_task(task_t *task, pthread_t *tid, int is_real_time)
+static int create_common_task(gnpl_task_t *task, pthread_t *tid, int is_real_time)
 {
 	int ret = 0;
 	pthread_attr_t attr;
@@ -136,11 +207,9 @@ static int create_common_task(task_t *task, pthread_t *tid, int is_real_time)
 		goto err_create;
 	}
 
-#ifndef _ANDROID_
 	if(task->name) {
 		pthread_setname_np(*tid, task->name);
 	}
-#endif
 
 	if (task->is_detach) {
 		pthread_detach(*tid);
@@ -154,88 +223,4 @@ err_create:
 err_set:
 	return ret;
 }
-
-
-void dump_thread_stack()
-{
-#ifndef _ANDROID_
-	int i = 0;
-	int size = 0;
-    void *buffer[MAX_BACKTRACE_NUM] = {0};
-	char **symbol = NULL;
-	char thread_name[MAX_THREAD_NAME_LEN] = {0};
-
-	pthread_getname_np(pthread_self(), thread_name, MAX_THREAD_NAME_LEN);
-    size = backtrace(buffer, MAX_BACKTRACE_NUM);
-    symbol = backtrace_symbols(buffer, size);
-	
-    LOG_INFO(LOG_MOD_UTILS, "[%15s]Seg-fault backtrack:\n",thread_name);
-    for (i = 0; i < size; ++i) {
-      LOG_INFO(LOG_MOD_UTILS, "[%15s][%3d/%3d]: %s\n", thread_name, i, size, symbol[i]);
-    }
-    free(symbol);
-#else
-	//to do android
-#endif
-}
-
-int task_init(task_t *task)
-{
-	memset(task,0,sizeof(task_t));
-	task->cpuid = -1;
-
-	return 0;
-}
-
-task_t *task_alloc_init()
-{
-	task_t *task = (task_t *)malloc(sizeof(task_t));
-	if (!task) {
-		LOG_ERROR(LOG_MOD_UTILS, "no mem for task!\n");
-		return NULL;
-	}
-
-	task_init(task);
-	return task;
-}
-
-int task_free(task_t *task)
-{
-	if (task) {
-		free(task);
-	}
-
-	return 0;
-}
-
-int task_set_param(task_t *task, char *name, task_func entry, void *arg)
-{
-	task->name = name;
-	task->arg = arg;
-	task->entry = entry;
-	return 0;
-}
-
-int task_create(task_t *task, pthread_t *tid)
-{
-	return create_common_task(task, tid, 0);
-}
-
-int task_create_real_time(task_t *task, pthread_t *tid)
-{
-	return create_common_task(task, tid, 1);
-}
-
-int task_register_signal(void)
-{
-	signal(SIGSEGV, signal_handler);
-	signal(SIGILL, signal_handler);
-	signal(SIGABRT, signal_handler);
-	signal(SIGBUS, signal_handler);
-	signal(SIGFPE, signal_handler);
-	signal(SIGSYS, signal_handler);
-
-	return 0;
-}
-
 
